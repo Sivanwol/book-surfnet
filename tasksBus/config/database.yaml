@@ -1,0 +1,9 @@
+entityPrefix: entity
+cache: false
+default:
+  host: localhost
+  port: 3306
+  type: mysql
+  database: entities
+  username: 'root'
+  password: 'root'
