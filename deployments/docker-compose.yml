@@ -1,0 +1,175 @@
+version: '3.7'
+
+services:
+  entitiesTree:
+    container_name: entitiesTree
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/usr/app/entitiesTree
+      - /usr/app/entitiesTree/node_modules
+    ports:
+      - ${ET_SERVER_PORT}:${ET_SERVER_PORT}
+      - 9229:9229
+    command: npm run start:dev
+    env_file:
+      - .env
+    networks:
+      - webnet
+    depends_on:
+      - kafka
+      - kafka-rest
+      - rabbit
+      - redis
+      - postgres
+  flowBus:
+    container_name: flowBus
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/usr/app/flowBus
+      - /usr/app/flowBus/node_modules
+    ports:
+      - ${FB_SERVER_PORT}:${FB_SERVER_PORT}
+      - 9230:9230
+    command: npm run start:dev
+    env_file:
+      - .env
+    networks:
+      - webnet
+    depends_on:
+      - entitiesTree
+  frontend:
+    container_name: frontend
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/usr/app/frontend
+      - /usr/app/frontend/node_modules
+    ports:
+      - ${FE_SERVER_PORT}:${FE_SERVER_PORT}
+      - 9231:9231
+    command: npm run start:dev
+    env_file:
+      - .env
+    networks:
+      - webnet
+    depends_on:
+      - flowBus
+  tasksBus:
+    container_name: tasksBus
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/usr/app/tasksBus
+      - /usr/app/tasksBus/node_modules
+    ports:
+      - ${TB_SERVER_PORT}:${TB_SERVER_PORT}
+      - 9232:9232
+    command: npm run start:dev
+    env_file:
+      - .env
+    networks:
+      - webnet
+    depends_on:
+      - entitiesTree
+      - flowBus
+  mcu:
+    container_name: mcu
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/usr/app/mcu
+      - /usr/app/mcu/node_modules
+    ports:
+      - ${MCU_SERVER_PORT}:${MCU_SERVER_PORT}
+      - 9233:9233
+    command: npm run start:dev
+    env_file:
+      - .env
+    networks:
+      - webnet
+    depends_on:
+      - tasksBus
+      - entitiesTree
+      - flowBus
+  zookeeper:
+    image: confluentinc/cp-zookeeper:3.2.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: always
+    ports: ['2181:2181']
+
+  kafka:
+    image: confluentinc/cp-kafka:3.2.0
+    depends_on:
+    - zookeeper
+    ports: ['29092:29092']
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: always
+  kafka-rest:
+    image: confluentinc/cp-kafka-rest:3.2.0
+    depends_on:
+    - kafka
+    ports: ['8082:8082']
+    environment:
+      KAFKA_REST_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      KAFKA_REST_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_REST_HOST_NAME: localhost
+    restart: always
+  redis:
+    container_name: redis
+    image: redis:5
+    networks:
+      - webnet
+    restart: always
+  rabbit:
+    container_name: dev_rabbit
+    restart: always
+    hostname: rabbit
+    image: rabbitmq:3.6.6-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=user
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - "./rebbitMq-enabled_plugins:/etc/rabbitmq/enabled_plugins"
+      #- "./autocluster-0.4.1.ez:/usr/lib/rabbitmq/lib/rabbitmq_server-3.5.5/plugins/autocluster-0.4.1.ez"
+  postgres:
+    container_name: postgres
+    restart: always
+    image: postgres:12
+    networks:
+      - webnet
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      PG_DATA: /var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+networks:
+  webnet:
+    external: true
+
+volumes:
+  pgdata:
+  rabbit:
