@@ -1,8 +1,15 @@
-import { NestFactory } from '@nestjs/core';
+import { APIServer } from './common/server/ApiServer';
 import { AppModule } from './app.module';
-
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  await app.listen(3000);
+  const serverName = process.env.SERVER_NAME || false;
+  if (!serverName) {
+    console.error("Required server name param for run this server");
+    process.exit(1);
+  }
+  console.log("Init Server settings", serverName);
+  const apiServer = new APIServer( serverName , AppModule);
+  await apiServer.startServer();
+  console.log("Finshed Loading Server");
 }
+// http
 bootstrap();
